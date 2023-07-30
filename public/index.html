@@ -15,12 +15,9 @@
     <link href="/content/css/app.css" rel="stylesheet" type="text/css" />
     <base href="/">
 
-
-
 </head>
 
 <body>
-
 
     <div layout="column" layout-fill>
         <!--navbar directive that stays at the top of every page-->
@@ -51,6 +48,24 @@
     <script src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/t-114/svg-assets-cache.js"></script>
 
 
+    <!--main app module-->
+    <script src="app/app.module.js"></script>
+
+
+    <!--console module-->
+    <script src="app/console/console.module.js"></script>
+    <script src="app/console/config.route.js"></script>
+    <script src="app/console/console.controller.js"></script>
+    <script src="app/console/analytics/analytics.controller.js"></script>
+
+
+    <!--core module-->
+    <script src="app/core/core.module.js"></script>
+    <script src="app/core/socket.service.js"></script>
+
+    <!--layout module-->
+    <script src="app/layout/layout.module.js"></script>
+    <script src="app/layout/navbar.directive.js"></script>
 
 </body>
 
