@@ -4,7 +4,7 @@ var WebSocket = require('ws')
 
 
 //import modules
-var robota = require('./main/async');
+var myapp = require('./main/async');
 
 
 var router = express();
@@ -23,14 +23,14 @@ ws.on('connection', function connection(ws) {
     console.log('Error: ' + err.code);
   });
 
-  robota.openClientSocket(ws)
+  myapp.openClientSocket(ws)
 });
 
 
 server.listen(process.env.PORT || 3000, process.env.IP || "0.0.0.0", function () {
   console.log("Server listening");
-  robota.start();
-  //robota.openClientSocket(ws)
+  myapp.start();
+  //myapp.openClientSocket(ws)
 });
 
 router.use(function (req, res) {
