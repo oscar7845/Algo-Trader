@@ -7,13 +7,15 @@ var BitMexApi = require('bit_mex_api');
 const async = require('async')
 const rr = require('requestretry');
 
+//modules
 const tradingEngine = require('./tradingEngine')
 
-appStatus = false
-clientSocket = null
-const serverTimeout = 500
-const asyncMaxAttempts = 30
-const asyncRetryDelay = 1000
+//system
+appStatus = false // is bot running
+clientSocket = null // browser websocket
+const serverTimeout = 500 //delay between requests
+const asyncMaxAttempts = 30 //max number of retry attempts
+const asyncRetryDelay = 1000 //delay between retries
 
 
 retryParams = {
@@ -23,23 +25,28 @@ retryParams = {
   retryStrategy: retryStrategy
 }
 
-gdaxSocket = null
-gdaxResetInterval = null
-gdaxErrorInterval = null
+//gdax
+gdaxSocket = null //gdax websocket 
+gdaxResetInterval = null //checks for dead gdax socket
+gdaxErrorInterval = null //checks for errors in gdax socket
 
-candleCount = 0
-candleInterval = null
-candleStartTime = 0
+//candles
+candleCount = 0 //number of candles closed by the app 
+candleInterval = null //closes candles on set interval 
+candleStartTime = 0 //when candle started. Needed for syncing and getting time remaining on candle
 
-bitmexPrice = 0
-tradeResult = ""
+//to client websocket
+bitmexPrice = 0 // live bitmex price
+tradeResult = "" // result from tradingEngine.js
+
+//bitmex position
 bitmexCandles = []
 
 
 //trading variables
-const candleMinute = 5
-const maPeriod = 50
-const candleDuration = 60000 * candleMinute
+const candleMinute = 5 //candle duration in minutes 
+const maPeriod = 50 // moving average period...needed for slicing array to send to client 
+const candleDuration = 60000 * candleMinute //candle duration in milliseconds
 const leverage = 10
 
 async function start() {
@@ -51,12 +58,12 @@ async function getBitmexCandles() {
 
   var apiInstance = new BitMexApi.TradeApi();
   var opts = { 
-    'binSize': "5m", // String 
-    'partial': true, // Boolean 
-    'symbol': "XBTUSD", // String
-    'count': 750, // Number
-    'start': 0, // Number
-    'reverse': true, // Boolean
+    'binSize': "5m", // String | Time interval to bucket by. Available options: [1m,5m,1h,1d].
+    'partial': true, // Boolean | If true, will send in-progress (incomplete) bins for the current time period.
+    'symbol': "XBTUSD", // String | Instrument symbol. Send a bare series (e.g. XBU) to get data for the nearest expiring contract in that series.  You can also send a timeframe, e.g. `XBU:monthly`. Timeframes are `daily`, `weekly`, `monthly`, `quarterly`, and `biquarterly`.
+    'count': 750, // Number | Number of results to fetch.
+    'start': 0, // Number | Starting point for results.
+    'reverse': true, // Boolean | If true, will sort results newest first.
   };
 
   apiInstance.tradeGetBucketed(opts, function(error, data, respons) {
@@ -101,21 +108,21 @@ function openBitmexSocket() {
       const quote = data[data.length - 1];
       var time = (new Date(quote.timestamp)).getTime();
 
-      if (appStatus == false) { 
+      if (appStatus == false) { //is app already running? needed for initation process 
         if (bitmexCandles[bitmexCandles.length - 1].time + candleDuration < time) { //finds missing candle
           console.log('Missing candle....restarting')
           sendClientMessage('Missing candle...restarting')
           clearInterval(deadInterval)
           clearInterval(errorInterval)
-          bitmexCandles = []
-          setTimeout(openBitmexSocket, 10000) 
+          bitmexCandles = [] //deletes candles for next try
+          setTimeout(openBitmexSocket, 10000) //restart in 10 seconds 
         }
-        else {
+        else { //if no missing candles, begin initation process
           appStatus = true
           bitmexAvailable = true
           console.log('App initiated')
           sendClientMessage('App initiated')
-          startCandleTimer(time) //needed to sync
+          startCandleTimer(time) //needed to sync candles with current price 
         }
       }
 
@@ -135,7 +142,7 @@ function openBitmexSocket() {
 
   })
 
-  function detectDeadSocket() { //detect dead socket
+  function detectDeadSocket() { //detect dead socket by counting heartbeat instances 
     if (resetCount == 0) {
       console.log('Bitmex socket dead')
     }
@@ -154,12 +161,13 @@ function openBitmexSocket() {
 
 }
 
+//syncs realtime price with candles - first called by openGDAXsocket 
 function startCandleTimer(priceTime) {
   trade() //run trading engine on last candles.
 
   syncDelta = getSyncDelta(priceTime)
 
-  i = bitmexCandles.length - 1 
+  i = bitmexCandles.length - 1 //finds out when to close next candle based on time of realtime price (priceTime)
   currentCandleEnd = bitmexCandles[i].time + (candleDuration - syncDelta)
   candleStartTime = bitmexCandles[i].time
   syncTime = currentCandleEnd - priceTime
@@ -173,10 +181,10 @@ function startCandleTimer(priceTime) {
     time: bitmexCandles[i].time + candleDuration
   }
   bitmexCandles.push(firstCandle)
-  setTimeout(closeCandle, syncTime) //close the candle
+  setTimeout(closeCandle, syncTime) //close the candle after sync time has elapsed 
 }
 
-//closes candle on candleInterval
+//closes candle on candleInterval - first called by startCandleTimer
 function closeCandle() {
   i = bitmexCandles.length - 1
   syncDelta = getSyncDelta(bitmexCandles[i].time)
@@ -190,7 +198,7 @@ function closeCandle() {
   console.log('---------------')
   trade()
 
-  candleStartTime = (new Date()).getTime()
+  candleStartTime = (new Date()).getTime() //insert new incomplete candle (build by buildCandle)
   newCandle = {
     open: bitmexPrice,
     high: bitmexPrice,
@@ -198,14 +206,28 @@ function closeCandle() {
     close: bitmexPrice,
     time: bitmexCandles[i].time + candleDuration
   }
+  //shift array
   bitmexCandles.shift() //remove last in candle array 
   bitmexCandles.push(newCandle)
 
 }
 
+//build candle...gets highs and lows - called on new realtime price 
 function buildCandle(price) {
+  i = bitmexCandles.length - 1
+  //candle build
+  if (price > bitmexCandles[i].high) {
+    bitmexCandles[i].high = price
+  }
+  if (price < bitmexCandles[i].low) {
+    bitmexCandles[i].low = price
+  }
+  if (bitmexCandles[i].low == 0) {
+    bitmexCandles[i].low = price
+  }
 }
 
+//delegates trading functions - called when candle is closed (closeCandle)
 function trade() {
   candles = bitmexCandles
 
@@ -224,6 +246,7 @@ function trade() {
     .then((result) => {
       if(result.action) {
         tradeResult = result
+        //Place open/close position logic here for automated trading
       }
       action = tradeResult.action
       console.log(action)
@@ -233,6 +256,7 @@ function trade() {
 
 }
 
+//opens socket with client - called by server.js
 function openClientSocket(ws) {
   if (ws) {
 
@@ -249,7 +273,8 @@ function openClientSocket(ws) {
 
 }
 
-function sendClientData() {
+//sends client data created every candle close (candles, tradeResult, position ect..) 
+function sendClientData() { //caled by trade(), getPosition() and stop()
   if (clientSocket) {
     if (clientSocket.readyState === clientSocket.OPEN) {
       object = createClientObject()
@@ -258,7 +283,8 @@ function sendClientData() {
   }
 }
 
-function sendClientUpdate() { 
+//sends client data created for every new price received (status, price, candle) 
+function sendClientUpdate() { //called by openGDAXsocket, openClientSocket, stop()
   if (clientSocket) {
 
     if (clientSocket.readyState === clientSocket.OPEN) {
@@ -278,16 +304,33 @@ function sendClientUpdate() {
   }
 }
 
+//sends client message - called by openGDAXsocket, stop(), retryStrategy
 function sendClientMessage(message) {
   if (clientSocket) {
     clientSocket.send(JSON.stringify({ appMessage: message }))
   }
 }
 
+//creates objects to send to client - called by sendClientData, openClientSocket
 function createClientObject() {
+  cut = bitmexCandles.length - maPeriod
+  splicedArray = bitmexCandles.slice(cut) //limit candles sent to maPeriod
+  if (candleCount != 0) { //handling for sync period (startCandleTimer) 
+    splicedArray.pop()
+  }
+
+  clientObject = {
+    trade: tradeResult,
+    candleCount: candleCount,
+    candles: splicedArray,
+  }
+  return clientObject
 }
 
+//gets time left for candle - called only by sendClientUpdate
 function getRemainingTime() {
+  timeLeft = Math.round((candleDuration - ((new Date()).getTime() - candleStartTime)) / 1000)
+  return timeLeft
 }
 
 //retry strategy for request library
@@ -302,4 +345,8 @@ function retryStrategy(err, response, body) {
 }
 
 function getSyncDelta(time) {
+  date = new Date();
+  currentTime = date.getTime();
+
+  return currentTime - time
 }
