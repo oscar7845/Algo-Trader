@@ -1,0 +1,11 @@
+{
+    "name": "algo-trading",
+    "version": "0.0.0",
+    "description": "",
+    "main": "",
+    "repository": "",
+    "author": "Oscar Callo von Platen",
+    "dependencies": {
+      "async": "^2.6.1"
+    }
+  }
