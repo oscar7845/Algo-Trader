@@ -4,8 +4,8 @@ module.exports.trade = trade
 
 function trade(candles) {
 
-    latestCandle = candles[candles.length - 1]
-    price = latestCandle.close
+    let latestCandle = candles[candles.length - 1];
+    let price = latestCandle.close;
 
     const c = 9
     const b = 26
@@ -30,37 +30,71 @@ function trade(candles) {
 
 }
 
+const RSI_PERIOD = 7;  // from 14 to 7
+const BOLLINGER_PERIOD = 15;  // from 20 to 15
+const BOLLINGER_MULTIPLIER = 1.5;  // from 2 to 1.5
+
+
 function tradingEngine(leadingA, leadingB, macdHist, atr, price) {
-    action = 'Do nothing'
+    let action = 'Do nothing';
 
-    if (leadingA / price > 1.069 && leadingB > leadingA) {
-        //first buying condition
-        if (macdHist > -31 && macdHist < 1) {
-            action = "BUY"
-        }
-        else if (price < (entryPrice[i] - (atr * 3.1))) {
-            action = "SELL"
-        }
-    }
-    else if (price > leadingA) {
-        action = "SELL"
-    }
-    else {
-        action = 'Do nothing'
+    const rsi = calculateRSI(candles, RSI_PERIOD);
+    const { upperBand, lowerBand } = calculateBollingerBands(candles, BOLLINGER_PERIOD, BOLLINGER_MULTIPLIER);
+
+    if (rsi < 30 && leadingA > leadingB && price > lowerBand && macdHist > 0) {
+        action = "BUY";
+    } else if (rsi > 70 || price < leadingB || price > upperBand || macdHist < 0) {
+        action = "SELL";
+    } else if (leadingA > leadingB) {
+        action = "BUY";
     }
 
-
-
-    result = {
+    return {
         action: action,
         leadingA: leadingA,
         leadingB: leadingB,
         macdHist: macdHist,
         atr: atr,
-    }
-    return result
+        rsi: rsi
+    };
 }
 
+function calculateRSI(candles, period) {
+    let avgGain = 0;
+    let avgLoss = 0;
+
+    for (let i = 1; i <= period; i++) {
+        const change = candles[i].close - candles[i - 1].close;
+        if (change >= 0) {
+            avgGain += change;
+        } else {
+            avgLoss += Math.abs(change);
+        }
+    }
+
+    avgGain /= period;
+    avgLoss /= period;
+
+    const rs = avgGain / avgLoss;
+
+    return 100 - (100 / (1 + rs));
+}
+
+function calculateBollingerBands(candles, period, multiplier) {
+    const sma = calculateMA(candles.slice(-period).map(candle => candle.close));
+    let squaredDiffs = 0;
+
+    for (let i = candles.length - period; i < candles.length; i++) {
+        squaredDiffs += Math.pow(candles[i].close - sma, 2);
+    }
+
+    const standardDeviation = Math.sqrt(squaredDiffs / period);
+
+    return {
+        upperBand: sma + (multiplier * standardDeviation),
+        lowerBand: sma - (multiplier * standardDeviation)
+    };
+}
 
 //utils
 

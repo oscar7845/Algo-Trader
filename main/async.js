@@ -44,8 +44,8 @@ bitmexCandles = []
 
 
 //trading variables
-const binSize = "5m"
-const candleMinute = 5 //candle duration in minutes 
+const binSize = "1m"
+const candleMinute = 1 //candle duration in minutes 
 const maPeriod = 50 // moving average period...needed for slicing array to send to client 
 const candleDuration = 60000 * candleMinute //candle duration in milliseconds
 
@@ -61,7 +61,7 @@ async function getBitmexCandles() {
     'binSize': "binSize", // String | Time interval to bucket by. Available options: [1m,5m,1h,1d].
     'partial': true, // Boolean | If true, will send in-progress (incomplete) bins for the current time period.
     'symbol': "XBTUSD", // String | Instrument symbol. Send a bare series (e.g. XBU) to get data for the nearest expiring contract in that series.  You can also send a timeframe, e.g. `XBU:monthly`. Timeframes are `daily`, `weekly`, `monthly`, `quarterly`, and `biquarterly`.
-    'count': 750, // Number | Number of results to fetch.
+    'count': 600, // Number | Number of results to fetch.
     'start': 0, // Number | Starting point for results.
     'reverse': true, // Boolean | If true, will sort results newest first.
   };
